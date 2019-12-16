@@ -3,6 +3,19 @@ module.exports = function(schema, option) {
 
   // imports
   const imports = [];
+  const importPkgMap = {}
+  const addImport = (mod, pkg) => {
+    let m = importPkgMap[pkg] || [];
+    if (m.indexOf(mod) == -1){
+      m.push(mod)
+    }
+    importPkgMap[pkg] = m;
+  }
+  const buildImports = () => {
+    for(let k in importPkgMap){
+      imports.push(`import {${imports[k].join(', ')}} form '${k}'`)
+    }
+  }
 
   // inline style
   const style = {};
@@ -197,11 +210,11 @@ module.exports = function(schema, option) {
     })`;
   }
 
-  // generate render xml
+  // 渲染jsx
   const generateRender = (schema) => {
     const type = schema.componentName.toLowerCase();
     const className = schema.props && schema.props.className;
-    const classString = className ? ` style={styles.${className}}` : '';
+    const classString = ` style={[${className ? 'styles.' + className : ''}]}`;
 
     if (className) {
       style[className] = parseStyle(schema.props.style);
@@ -216,23 +229,28 @@ module.exports = function(schema, option) {
       }
     })
 
+    // 不同类型处理
     switch(type) {
+      // 文本 Text
       case 'text':
         const innerText = parseProps(schema.props.text, true);
-        xml = `<span${classString}${props}>${innerText}</span>`;
+        addImport('Text', 'ReactNative');
+        xml = `<Text${classString}${props}>${innerText}</Text>`;
         break;
+      // 图片
       case 'image':
         const source = parseProps(schema.props.src);
-        xml = `<img${classString}${props} src={${source}} />`;
+        addImport('Image', 'ReactNative');
+        xml = `<Image${classString}${props} src={${source}} />`;
         break;
       case 'div':
       case 'page':
       case 'block':
       case 'component':
         if (schema.children && schema.children.length) {
-          xml = `<div${classString}${props}>${transform(schema.children)}</div>`;
+          xml = `<View${classString}${props}>${transform(schema.children)}</View>`;
         } else {
-          xml = `<div${classString}${props} />`;
+          xml = `<View${classString}${props} />`;
         }
         break;
     }
@@ -268,12 +286,14 @@ module.exports = function(schema, option) {
         const methods = [];
         const init = [];
         const render = [`render(){ return (`];
-        let classData = [`class ${schema.componentName}_${classes.length} extends Component {`];
+        let classData = [`class ${schema.componentName}_${classes.length} extends Component<IProps> {`];
 
+        // 初始状态
         if (schema.state) {
           states.push(`state = ${toString(schema.state)}`);
         }
 
+        // 方法
         if (schema.methods) {
           Object.keys(schema.methods).forEach((name) => {
             const { params, content } = parseFunction(schema.methods[name]);
@@ -281,6 +301,7 @@ module.exports = function(schema, option) {
           });
         }
 
+        // 数据源
         if (schema.dataSource && Array.isArray(schema.dataSource.list)) {
           schema.dataSource.list.forEach((item) => {
             if (typeof item.isInit === 'boolean' && item.isInit) {
@@ -298,6 +319,7 @@ module.exports = function(schema, option) {
           }
         }
 
+        // 生命周期
         if (schema.lifeCycles) {
           if (!schema.lifeCycles['_constructor']) {
             lifeCycles.push(`constructor(props, context) { super(); ${init.join('\n')}}`);
@@ -314,6 +336,7 @@ module.exports = function(schema, option) {
           });
         }
 
+        // 渲染逻辑
         render.push(generateRender(schema))
         render.push(`);}`);
 
@@ -337,6 +360,7 @@ module.exports = function(schema, option) {
 
   // start parse schema
   transform(schema);
+  buildImports();
 
   const prettierOpt = {
     parser: 'babel',
@@ -347,7 +371,7 @@ module.exports = function(schema, option) {
   return {
     panelDisplay: [
       {
-        panelName: `index.jsx`,
+        panelName: `index.tsx`,
         panelValue: prettier.format(`
           'use strict';
 
