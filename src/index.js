@@ -13,7 +13,7 @@ module.exports = function(schema, option) {
   }
   const buildImports = () => {
     for(let k in importPkgMap){
-      imports.push(`import {${imports[k].join(', ')}} form '${k}'`)
+      imports.push(`import {${importPkgMap[k].join(', ')}} from '${k}'`)
     }
   }
 
